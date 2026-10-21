@@ -1,0 +1,23 @@
+{
+  "name": "img2threejs",
+  "version": "1.0.0",
+  "description": "Görselden renkli 3D model (.glb) üretimi, tamamen tarayıcıda — sunucusuz, kotasız. Depth + matting ile texture'lı Three.js mesh; GLB export.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": ["src/", "demo/", "README.md", "LICENSE"],
+  "keywords": ["three.js", "image-to-3d", "glb", "webgpu", "transformers.js", "depth", "matting", "browser", "offline"],
+  "license": "MIT",
+  "peerDependencies": {
+    "three": ">=0.150.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bilfen/img2threejs.git"
+  },
+  "scripts": {
+    "demo": "npx serve demo"
+  }
+}

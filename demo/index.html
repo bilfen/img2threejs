@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>img2threejs — Görselden Renkli 3D (Kotasız, Sunucusuz)</title>
+<style>
+  :root { --bg:#0f172a; --card:#1c2940; --line:#2b3a55; --txt:#e7edf5; --dim:#93a4bd; --acc:#5eb8ff; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--txt);padding:24px;display:flex;flex-direction:column;align-items:center}
+  h1{font-size:26px;margin:8px 0 4px}
+  .sub{color:var(--dim);font-size:14px;margin-bottom:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;max-width:860px;width:100%;margin-bottom:16px}
+  .drop{border:2px dashed #4a6right;border:2px dashed #4a5a7a;border-radius:14px;padding:40px;text-align:center;cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--acc);background:rgba(94,184,255,.06)}
+  canvas{width:100%;height:380px;border-radius:12px;background:var(--bg);display:block;margin-top:14px}
+  button{font:inherit;background:var(--acc);color:#082236;border:0;border-radius:999px;padding:10px 22px;font-weight:700;cursor:pointer;margin-top:12px}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  #log{font:12px/1.5 ui-monospace,Consolas,monospace;color:var(--dim);white-space:pre-wrap;max-height:130px;overflow:auto;background:#0b1420;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:12px}
+  a.dl{display:inline-block;margin-top:12px;color:var(--acc);text-decoration:none;font-weight:600;border:1px solid var(--line);padding:8px 18px;border-radius:999px}
+  code{background:#0b1420;padding:2px 7px;border-radius:6px;font-size:12.5px;color:#9ee493}
+</style>
+</head>
+<body>
+<h1>img2threejs</h1>
+<div class="sub">Görsel → <b>renkli 3D model (GLB)</b>. Tarayıcıda, sunucusuz, kotasız, ücretsiz. İlk üretimde ~26 MB AI modeli iner, sonra önbellekten çalışır.</div>
+
+<div class="card">
+  <div class="drop" id="drop">
+    🖼️ <b>Görseli buraya bırak veya tıkla</b><br>
+    <small style="color:var(--dim)">Sade arka planlı tek nesne en iyi sonucu verir</small>
+  </div>
+  <input type="file" id="file" accept="image/*" hidden>
+  <canvas id="stage"></canvas>
+  <div id="log">Hazır — bir görsel seçin.</div>
+  <div id="actions"></div>
+</div>
+
+<div class="card">
+  <b style="color:var(--acc)">📚 Kütüphane kullanımı</b>
+  <pre style="background:#0b1420;padding:12px;border-radius:10px;overflow:auto;font-size:12px;line-height:1.6"><code>import { imageToGLB, setProgressLogger } from "./src/index.js";
+// veya CDN (repo Pages'ten):
+// import { imageToGLB } from "https://bilfen.github.io/img2threejs/src/index.js";
+
+setProgressLogger(console.log);
+const glb = await imageToGLB(fileOrUrl);   // → Blob "model/gltf-binary"
+// indir: URL.createObjectURL(glb)</code></pre>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { imageToGLB, setProgressLogger } from "../src/index.js";
+
+const $ = (id) => document.getElementById(id);
+const drop = $("drop"), fileIn = $("file"), logEl = $("log"), actions = $("actions");
+const log = (m) => { logEl.textContent += m + "\n"; logEl.scrollTop = 1e9; };
+setProgressLogger((m) => log("· " + m));
+
+const canvas = $("stage");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f172a);
+const camera = new THREE.PerspectiveCamera(45, 2, 0.1, 100);
+camera.position.set(0, 0.4, 3.2);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x333333, 1.2));
+const d = new THREE.DirectionalLight(0xffffff, 2.2); d.position.set(3, 5, 4); scene.add(d);
+const d2 = new THREE.DirectionalLight(0xffffff, 1.2); d2.position.set(-4, 2, -3); scene.add(d2);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+function loop() {
+  requestAnimationFrame(loop);
+  renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+  camera.aspect = canvas.clientWidth / canvas.clientHeight;
+  camera.updateProjectionMatrix();
+  const m = scene.children.find((c) => c.isMesh);
+  if (m) m.rotation.y += 0.01;
+  controls.update();
+  renderer.render(scene, camera);
+}
+loop();
+
+drop.addEventListener("click", () => fileIn.click());
+fileIn.addEventListener("change", () => fileIn.files[0] && run(fileIn.files[0]));
+["dragover","dragenter"].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add("over"); }));
+drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+drop.addEventListener("drop", (ev) => { ev.preventDefault(); drop.classList.remove("over"); ev.dataTransfer.files[0] && run(ev.dataTransfer.files[0]); });
+
+async function run(file) {
+  logEl.textContent = "";
+  log("Görsel: " + file.name + " (" + Math.round(file.size/1024) + " KB)");
+  actions.innerHTML = "";
+  const t0 = Date.now();
+  try {
+    const glb = await imageToGLB(file);
+    const ms = Date.now() - t0;
+    log("✔ GLB hazır: " + Math.round(glb.size/1024) + " KB, " + Math.round(ms/100)/10 + " sn");
+    const url = URL.createObjectURL(glb);
+    new GLTFLoader().load(url, (g) => {
+      if (canvas._m) scene.remove(canvas._m);
+      canvas._m = g.scene;
+      const box = new THREE.Box3().setFromObject(g.scene);
+      const s = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+      const maxD = Math.max(s.x, s.y, s.z) || 1;
+      g.scene.position.set(-c.x, -c.y, -c.z);
+      g.scene.scale.setScalar(1.7 / maxD);
+      scene.add(g.scene);
+      canvas._m = g.scene;
+    });
+    const a = document.createElement("a");
+    a.className = "dl"; a.href = url; a.download = "img2threejs.glb";
+    a.textContent = "⬇ GLB indir";
+    actions.appendChild(a);
+  } catch (e) {
+    log("✖ Hata: " + e.message);
+  }
+}
+</script>
+</body>
+</html>
